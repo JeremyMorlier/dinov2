@@ -117,7 +117,8 @@ class DistillMetaArch(nn.Module):
 
         self.student = nn.ModuleDict(student_model_dict)
         self.teacher = nn.ModuleDict(teacher_model_dict)
-        self.student_shadow = copy.deepcopy(self.student)
+        print(self.student, cfg.teacher.pretrained_weights)
+        self.student_shadow = nn.ModuleDict(student_model_dict)
 
         assert cfg.teacher.pretrained_weights is not None, "Must contain pretrained weights for distillation."
         chkpt = torch.load(cfg.teacher.pretrained_weights)
