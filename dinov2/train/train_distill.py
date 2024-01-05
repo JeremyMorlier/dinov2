@@ -138,7 +138,6 @@ def do_train(cfg, model, resume=False):
     fp16_scaler = model.fp16_scaler  # for mixed precision training
 
     # setup optimizer
-
     optimizer = build_optimizer(cfg, model.get_params_groups())
     (
         lr_schedule,
@@ -301,7 +300,7 @@ def main(args):
     model = DistillMetaArch(cfg).to(torch.device("cuda"))
     model.prepare_for_distributed_training()
 
-    logger.info("Model:\n{}".format(model))
+    #logger.info("Model:\n{}".format(model))
     if args.eval_only:
         iteration = (
             FSDPCheckpointer(model, save_dir=cfg.train.output_dir)

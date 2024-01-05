@@ -40,11 +40,15 @@ class DistillMetaArch(nn.Module):
 
         student_model_dict = dict()
         teacher_model_dict = dict()
+        student_shadow_model_dict = dict()
 
         student_backbone, student_embed_dim = build_model(cfg.student, only_teacher=True, img_size=cfg.crops.global_crops_size) # pyright: ignore
         teacher_backbone, teacher_embed_dim = build_model(cfg.teacher, only_teacher=True, img_size=cfg.crops.global_crops_size) # pyright: ignore
+        student_shadow_backbone, student_shadow_embed_dim = build_model(cfg.student, only_teacher=True, img_size=cfg.crops.global_crops_size) # pyright: ignore
+        
         student_model_dict["backbone"] = student_backbone
         teacher_model_dict["backbone"] = teacher_backbone
+        student_shadow_model_dict["backbone"] = student_shadow_backbone
 
         # Student and teacher embedding dimensions can be different and therefore DINO head and IBOT heads should be different
         logger.info(f"OPTIONS -- architecture : student_embed_dim: {student_embed_dim}")
@@ -52,6 +56,7 @@ class DistillMetaArch(nn.Module):
 
         self.student_embed_dim = student_embed_dim
         self.teacher_embed_dim = teacher_embed_dim
+        self.student_shadow_embed_dim = student_shadow_embed_dim
         self.dino_out_dim = cfg.dino.head_n_prototypes
 
         self.do_dino = cfg.dino.loss_weight > 0
@@ -85,6 +90,7 @@ class DistillMetaArch(nn.Module):
         if self.do_dino or self.do_ibot:
             student_model_dict["dino_head"] = dino_head(in_dim=student_embed_dim) # pyright: ignore
             teacher_model_dict["dino_head"] = dino_head(in_dim=teacher_embed_dim) # pyright: ignore
+            student_shadow_model_dict["dino_head"] = dino_head(in_dim=student_shadow_embed_dim) # pyright: ignore
 
         logger.info("OPTIONS -- IBOT")
         logger.info(f"OPTIONS -- IBOT -- loss_weight: {cfg.ibot.loss_weight}")
@@ -110,6 +116,7 @@ class DistillMetaArch(nn.Module):
                 )
                 student_model_dict["ibot_head"] = ibot_head(in_dim=student_embed_dim)
                 teacher_model_dict["ibot_head"] = ibot_head(in_dim=teacher_embed_dim)
+                student_shadow_model_dict["ibot_head"] = ibot_head(in_dim=student_shadow_embed_dim)
             else:
                 logger.info("OPTIONS -- IBOT -- head shared with DINO")
 
@@ -117,13 +124,13 @@ class DistillMetaArch(nn.Module):
 
         self.student = nn.ModuleDict(student_model_dict)
         self.teacher = nn.ModuleDict(teacher_model_dict)
-        print(self.student, cfg.teacher.pretrained_weights)
-        self.student_shadow = nn.ModuleDict(student_model_dict)
+
+        self.student_shadow = nn.ModuleDict(student_shadow_model_dict)
 
         assert cfg.teacher.pretrained_weights is not None, "Must contain pretrained weights for distillation."
         chkpt = torch.load(cfg.teacher.pretrained_weights)
         logger.info(f"OPTIONS -- pretrained weights: loading from {cfg.teacher.pretrained_weights}")
-        self.teacher.load_state_dict(chkpt["model"], strict=False)
+        self.teacher.load_state_dict(chkpt, strict=False)
 
         # there is no backpropagation through the teacher, so no need for gradients
         for p in self.teacher.parameters():
@@ -385,9 +392,10 @@ class DistillMetaArch(nn.Module):
         student_shadow_param_list = []
         with torch.no_grad():
             for k in self.student.keys():
-                for ms, mss in zip(get_fsdp_modules(self.student[k]), get_fsdp_modules(self.student_shadow[k])):
+                for ms, mss in zip(get_fsdp_modules(self.student[k]), [self.student_shadow[k]]):
                     student_param_list += ms.params
                     student_shadow_param_list += mss.params
+            
             torch._foreach_mul_(student_shadow_param_list, m)
             torch._foreach_add_(student_shadow_param_list, student_param_list, alpha=1 - m)
 
@@ -426,6 +434,7 @@ class DistillMetaArch(nn.Module):
             # self.teacher[k].load_state_dict(self.student[k].state_dict())
             student_model_cfg = self.cfg.compute_precision.student[k]
             self.student[k] = get_fsdp_wrapper(student_model_cfg, modules_to_wrap={BlockChunk})(self.student[k])
+            self.student_shadow[k] = get_fsdp_wrapper(student_model_cfg, modules_to_wrap={BlockChunk})(self.student_shadow[k])
 
         for k, v in self.teacher.items():
             teacher_model_cfg = self.cfg.compute_precision.teacher[k]
