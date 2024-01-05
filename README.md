@@ -93,7 +93,9 @@ conda activate dinov2
 *[pip](https://pip.pypa.io/en/stable/getting-started/)* - Clone the repository and then use the provided `requirements.txt` to install the dependencies:
 
 ```shell
+cd dinov2  
 pip install -r requirements.txt
+pip install -e .  
 ```
 
 ## Data preparation
