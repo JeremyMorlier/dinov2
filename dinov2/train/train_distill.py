@@ -185,7 +185,7 @@ def do_train(cfg, model, resume=False):
         mask_ratio_tuple=cfg.ibot.mask_ratio_min_max,
         mask_probability=cfg.ibot.mask_sample_probability,
         n_tokens=n_tokens,
-        mask_generator=mask_generator,
+        mask_generator=None,
         dtype=inputs_dtype,
     )
 
