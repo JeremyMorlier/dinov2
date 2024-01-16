@@ -11,3 +11,4 @@ dist/
 *.swp
 
 .vscode/
+venv_dino2_2/**
