@@ -59,7 +59,7 @@ ibot:
   head_nlayers: 3
   head_hidden_dim: 2048
 train:
-  batch_size_per_gpu: 256
+  batch_size_per_gpu: 32
   dataset_path: ImageNet:split=TRAIN
   output_dir: .
   saveckp_freq: 20
@@ -74,6 +74,7 @@ student:
   drop_path_rate: 0.3
   layerscale: 1.0e-05
   drop_path_uniform: true
+  #pretrained_weights: '/nasbrain/j20morli/eval_clip/checkpoints/model_0007499.rank_0.pth'
   pretrained_weights: ''
   ffn_layer: "mlp"
   block_chunks: 0
@@ -107,9 +108,9 @@ optim:
   epochs: 100
   weight_decay: 0.04
   weight_decay_end: 0.2
-  base_lr: 0.004  # learning rate for a batch size of 1024
+  base_lr:  2e-4 # learning rate for a batch size of 1024
   lr: 0.0  # will be set after applying scaling rule
-  warmup_epochs: 10
+  warmup_epochs: 0
   min_lr: 1.0e-06
   clip_grad: 3.0
   freeze_last_layer_epochs: 1

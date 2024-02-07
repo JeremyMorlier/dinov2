@@ -9,6 +9,7 @@ import logging
 import math
 import os
 from functools import partial
+from omegaconf import OmegaConf
 
 from fvcore.common.checkpoint import PeriodicCheckpointer
 import torch
@@ -23,6 +24,7 @@ from dinov2.utils.utils import CosineScheduler
 
 from dinov2.train.distill_meta_arch import DistillMetaArch
 
+import wandb
 
 torch.backends.cuda.matmul.allow_tf32 = True  # PyTorch 1.12 sets this to False by default
 logger = logging.getLogger("dinov2")
@@ -243,7 +245,7 @@ def do_train(cfg, model, resume=False):
 
         optimizer.zero_grad(set_to_none=True)
         loss_dict = model.forward_backward(data, teacher_temp=teacher_temp)
-
+        wandb.log(loss_dict)
         # clip gradients
 
         if fp16_scaler is not None:
@@ -291,6 +293,7 @@ def do_train(cfg, model, resume=False):
 
         iteration = iteration + 1
     metric_logger.synchronize_between_processes()
+    wandb.log({k: meter.global_avg for k, meter in metric_logger.meters.items()})
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
@@ -300,6 +303,15 @@ def main(args):
     model = DistillMetaArch(cfg).to(torch.device("cuda"))
     model.prepare_for_distributed_training()
 
+    temp = OmegaConf.to_container(cfg)
+    # Setup WandB
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="DINO_Distillation",
+        
+        # track hyperparameters and run metadata
+        config=OmegaConf.to_container(cfg)
+    )
     #logger.info("Model:\n{}".format(model))
     if args.eval_only:
         iteration = (
@@ -312,7 +324,7 @@ def main(args):
 
     do_train(cfg, model, resume=not args.no_resume)
 
-
+    wandb.finish()
 if __name__ == "__main__":
     args = get_args_parser(add_help=True).parse_args()
     main(args)

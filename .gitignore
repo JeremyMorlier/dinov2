@@ -10,3 +10,5 @@ dist/
 
 .vscode/
 venv_dino2_2/**
+
+wandb
